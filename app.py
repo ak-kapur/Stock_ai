@@ -11,6 +11,7 @@ st.title("📈 StockWise AI – LLM-powered Stock Advisor")
 
 query = st.text_input("Ask about a stock:")
 if query:
+    st.write(f"**Debug:** Query received: '{query}'")
     tickers = ticker_extractor.extract_tickers(query)
     if not tickers:
         st.error("Could not extract a valid ticker. Try again.")
