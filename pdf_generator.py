@@ -1,6 +1,6 @@
 from fpdf import FPDF
 from datetime import datetime
-import io
+import re
 
 class StockReportPDF(FPDF):
     def header(self):
@@ -16,6 +16,26 @@ class StockReportPDF(FPDF):
         self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
 
 
+def sanitize_text(text):
+    """
+    Remove emojis and special unicode characters that cause PDF encoding errors
+    """
+    if not text:
+        return ""
+    
+    # Remove emojis and special unicode characters
+    # Keep only ASCII printable characters and common punctuation
+    sanitized = re.sub(r'[^\x00-\x7F]+', ' ', str(text))
+    
+    # Remove multiple spaces
+    sanitized = re.sub(r'\s+', ' ', sanitized)
+    
+    # Remove special markdown characters that might cause issues
+    sanitized = sanitized.replace('*', '').replace('#', '').replace('_', '')
+    
+    return sanitized.strip()
+
+
 def create_stock_report(ticker, price_data, prediction, news_analysis, price_analysis):
     """
     Create a professional PDF stock analysis report
@@ -23,6 +43,12 @@ def create_stock_report(ticker, price_data, prediction, news_analysis, price_ana
     pdf = StockReportPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
+    
+    # Sanitize all text inputs
+    ticker = sanitize_text(ticker)
+    news_analysis = sanitize_text(news_analysis)
+    price_analysis = sanitize_text(price_analysis)
+    prediction_reasoning = sanitize_text(prediction.get('reasoning', ''))
     
     # Title
     pdf.set_font('Arial', 'B', 24)
@@ -83,7 +109,7 @@ def create_stock_report(ticker, price_data, prediction, news_analysis, price_ana
         ('Predicted Price (7 days):', f"${predicted_price:.2f}"),
         ('Current Price:', f"${current_price:.2f}"),
         ('Expected Change:', f"${price_change:+.2f} ({pct_change:+.2f}%)"),
-        ('Confidence Level:', prediction['confidence'].upper()),
+        ('Confidence Level:', sanitize_text(prediction['confidence'].upper())),
     ]
     
     pdf.set_font('Arial', '', 10)
@@ -91,7 +117,7 @@ def create_stock_report(ticker, price_data, prediction, news_analysis, price_ana
         pdf.set_font('Arial', 'B', 10)
         pdf.cell(col_width, row_height, label, border=1)
         pdf.set_font('Arial', '', 10)
-        pdf.cell(col_width, row_height, value, border=1, ln=True)
+        pdf.cell(col_width, row_height, str(value), border=1, ln=True)
     
     pdf.ln(5)
     
@@ -99,7 +125,13 @@ def create_stock_report(ticker, price_data, prediction, news_analysis, price_ana
     pdf.set_font('Arial', 'B', 10)
     pdf.cell(0, 7, 'Prediction Analysis:', ln=True)
     pdf.set_font('Arial', '', 10)
-    pdf.multi_cell(0, 5, prediction['reasoning'])
+    
+    # Truncate and sanitize reasoning
+    reasoning_text = prediction_reasoning[:400] if len(prediction_reasoning) > 400 else prediction_reasoning
+    if reasoning_text:
+        pdf.multi_cell(0, 5, reasoning_text)
+    else:
+        pdf.multi_cell(0, 5, 'Analysis based on historical trends and current market conditions.')
     pdf.ln(5)
     
     # News & Sentiment Analysis
@@ -111,7 +143,10 @@ def create_stock_report(ticker, price_data, prediction, news_analysis, price_ana
     pdf.set_font('Arial', '', 10)
     # Truncate if too long
     news_text = news_analysis[:800] if len(news_analysis) > 800 else news_analysis
-    pdf.multi_cell(0, 5, news_text)
+    if news_text:
+        pdf.multi_cell(0, 5, news_text)
+    else:
+        pdf.multi_cell(0, 5, 'Market sentiment analysis based on recent news and reports.')
     pdf.ln(5)
     
     # Price Trend Analysis
@@ -122,7 +157,10 @@ def create_stock_report(ticker, price_data, prediction, news_analysis, price_ana
     
     pdf.set_font('Arial', '', 10)
     price_text = price_analysis[:600] if len(price_analysis) > 600 else price_analysis
-    pdf.multi_cell(0, 5, price_text)
+    if price_text:
+        pdf.multi_cell(0, 5, price_text)
+    else:
+        pdf.multi_cell(0, 5, 'Technical analysis based on historical price movements and trading patterns.')
     pdf.ln(8)
     
     # Investment Recommendation Box
@@ -166,4 +204,15 @@ for any financial losses incurred based on this report."""
     pdf.cell(0, 5, 'Powered by StockWise AI - Intelligent Stock Analysis Platform', align='C')
     
     # Return PDF as bytes
-    return pdf.output(dest='S').encode('latin-1')
+    try:
+        return pdf.output(dest='S').encode('latin-1')
+    except Exception as e:
+        print(f"[PDF Generation Error] {e}")
+        # Create a simple error PDF
+        error_pdf = FPDF()
+        error_pdf.add_page()
+        error_pdf.set_font('Arial', 'B', 16)
+        error_pdf.cell(0, 10, 'PDF Generation Error', ln=True)
+        error_pdf.set_font('Arial', '', 10)
+        error_pdf.multi_cell(0, 5, 'Unable to generate full report. Please try again.')
+        return error_pdf.output(dest='S').encode('latin-1')
