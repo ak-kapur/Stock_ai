@@ -6,4 +6,5 @@ finnhub-python
 openai
 tiktoken
 python-dotenv
-numpy  
+numpy
+yfinance
