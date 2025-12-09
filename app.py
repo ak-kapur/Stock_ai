@@ -1,5 +1,8 @@
 import streamlit as st
 import plotly.graph_objects as go
+from pdf_generator import create_stock_report
+from datetime import datetime
+
 from plotly.subplots import make_subplots
 import pandas as pd
 from datetime import datetime
@@ -238,6 +241,38 @@ if query:
         with st.spinner("Generating final investment advice..."):
             advice = final_answer.generate_advice(summary)
             st.markdown(advice)
+
+                # PDF Report Download
+        st.subheader("📥 Download Report")
+        
+        col_download1, col_download2 = st.columns([2, 1])
+        
+        with col_download1:
+            if st.button(f"📄 Generate PDF Report for {ticker}", key=f"pdf_{ticker}"):
+                with st.spinner("Generating PDF report..."):
+                    pdf_bytes = create_stock_report(
+                        ticker=ticker,
+                        price_data=price_data,
+                        prediction=prediction if "error" not in historical_data else {
+                            'predicted_price': price_data['current_price'],
+                            'confidence': 'low',
+                            'reasoning': 'Insufficient historical data'
+                        },
+                        news_analysis=news_summary,
+                        price_analysis=price_summary
+                    )
+                    
+                    st.download_button(
+                        label=f"⬇️ Download {ticker}_Report_{datetime.now().strftime('%Y%m%d')}.pdf",
+                        data=pdf_bytes,
+                        file_name=f"{ticker}_StockWise_Report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                        mime="application/pdf",
+                        key=f"download_{ticker}"
+                    )
+        
+        with col_download2:
+            st.info(f"📊 Report includes:\n- Current metrics\n- Price prediction\n- Analysis")
+
         
         # Disclaimer
         st.caption("⚠️ **Disclaimer:** This analysis is for informational purposes only and should not be considered financial advice. Always consult with a licensed financial advisor before making investment decisions.")

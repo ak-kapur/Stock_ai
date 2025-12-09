@@ -8,3 +8,5 @@ tiktoken
 python-dotenv
 numpy
 yfinance
+fpdf2
+fpdf2
